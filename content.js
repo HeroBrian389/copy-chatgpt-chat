@@ -1,5 +1,49 @@
 console.log("Content script loading on:", window.location.href);
 
+// --------------------------------------------------------
+// Markdown conversion setup (Turndown + GFM plugin)
+// --------------------------------------------------------
+// Ensure Turndown is available (added as a separate script in manifest)
+let turndownService = null;
+if (typeof TurndownService !== 'undefined') {
+  try {
+    turndownService = new TurndownService({
+      codeBlockStyle: 'fenced',
+      headingStyle: 'atx',
+      bulletListMarker: '-',
+      preformattedCode: false,
+    });
+
+    // Attach GFM plugin when available (tables, strikethrough, task list)
+    if (typeof turndownPluginGfm !== 'undefined') {
+      turndownService.use(turndownPluginGfm.gfm);
+    }
+
+    // Strip ChatGPT UI artefacts (buttons, footers)
+    turndownService.addRule('stripChatGptUi', {
+      filter: function (node) {
+        if (!node.getAttribute) return false;
+        const dataTestId = node.getAttribute('data-testid') || '';
+        // Copy / feedback / sources buttons have data-testid ending with '-action-button' or similar
+        if (dataTestId.endsWith('turn-action-button')) return true;
+        // Footnote source button container has bg-token-main-surface-primary etc.
+        if (dataTestId.includes('footnote')) return true;
+        // Hide hidden hr
+        return false;
+      },
+      replacement: function () {
+        return '';
+      },
+    });
+
+  } catch (e) {
+    console.warn('Failed to initialise TurndownService. Falling back to plain text.', e);
+    turndownService = null;
+  }
+} else {
+  console.warn('TurndownService not found on window. Falling back to plain text.');
+}
+
 function extractChatContent() {
   try {
     var conversationContent = "";
@@ -47,13 +91,23 @@ function extractChatContent() {
     // Process AI messages
     for (var j = 0; j < aiMessages.length; j++) {
       var element = aiMessages[j];
-      // Get all text content, excluding the "Sources" button
-      var text = element.textContent.trim();
-      if (text) {
+      var markdownText = '';
+      try {
+        if (turndownService) {
+          markdownText = turndownService.turndown(element.innerHTML).trim();
+        } else {
+          markdownText = element.textContent.trim();
+        }
+      } catch (convErr) {
+        console.error('Markdown conversion error:', convErr);
+        markdownText = element.textContent.trim();
+      }
+
+      if (markdownText) {
         allMessages.push({
           element: element,
           role: 'ChatGPT',
-          text: text,
+          text: markdownText,
           position: getElementPosition(element)
         });
       }
@@ -64,10 +118,13 @@ function extractChatContent() {
       return a.position - b.position;
     });
     
-    // Combine all messages into the conversation content
+    // Combine all messages into the conversation content using tag wrappers
     for (var k = 0; k < allMessages.length; k++) {
       var message = allMessages[k];
-      conversationContent += '## ' + message.role + ':\n' + message.text + '\n\n';
+      var isAssistant = message.role === 'ChatGPT';
+      var tag = isAssistant ? 'Assistant' : 'User';
+      var body = isAssistant ? '```md\n' + message.text + '\n```' : message.text;
+      conversationContent += '<' + tag + '>\n' + body + '\n</' + tag + '>\n\n';
     }
     
     return conversationContent || "No conversation content found";

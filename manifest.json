@@ -15,7 +15,11 @@
   "content_scripts": [
     {
       "matches": ["https://chat.openai.com/*", "https://chatgpt.com/*"],
-      "js": ["content.js"],
+      "js": [
+        "turndown.js",
+        "turndown-plugin-gfm.js",
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],

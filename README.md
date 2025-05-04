@@ -4,7 +4,7 @@ A Chrome extension that allows you to easily copy the current ChatGPT conversati
 
 ## Features
 
-- Copy the entire ChatGPT conversation with a single click
+- Copy the entire ChatGPT conversation with a single click – now preserves full Markdown (headings, tables, code-blocks, etc.) exactly as rendered by ChatGPT
 - Use the keyboard shortcut (Ctrl+Shift+C) to quickly copy the conversation
 - Right-click context menu option for easy access
 - Visual feedback when copying is complete
@@ -37,13 +37,33 @@ There are three ways to copy a ChatGPT conversation:
 
 After copying, you'll see a notification confirming that the conversation has been copied to your clipboard. You can then paste it into any document or text editor.
 
+### Output format
+
+Every turn is wrapped in lightweight tags so that multi-turn chats remain easy to parse later:
+
+```text
+<User>
+My prompt here.
+</User>
+
+<Assistant>
+```md
+### A heading
+Some *Markdown* content, code blocks, lists… – exactly as ChatGPT shows it in the UI.
+```
+</Assistant>
+```
+
+For assistant replies the extension first converts the underlying HTML back into Markdown using [Turndown](https://github.com/mixmark-io/turndown) with the GFM plugin, so code fences, tables and strikethrough are preserved.
+
 ## Troubleshooting
 
 If the extension doesn't correctly copy the conversation:
 
-- Make sure you're on the ChatGPT website (https://chatgpt.com/)
-- Try refreshing the page and attempting to copy again
-- If the issue persists, the ChatGPT DOM structure may have changed. Please open an issue on GitHub.
+1. Make sure you're on a supported URL (`https://chat.openai.com/*` or `https://chatgpt.com/*`).
+2. Try refreshing the page and copying again (DOM may not be fully loaded).
+3. If the assistant Markdown looks flattened (no headings/tables), the Turndown library may have failed to load – open DevTools > Console and look for warnings.
+4. The ChatGPT DOM structure might have changed; please open an issue with a sample page.
 
 ## License
 
